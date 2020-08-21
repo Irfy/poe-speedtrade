@@ -35,7 +35,7 @@ F3::ChatCmd("/harvest") ; otherwise used for arbitrary things
 ^F3::kick(secondary)	; used to leave party as this char or kick this char (see also F5 and ^F5)
 F4::wait_invite()		; inform the last person that you need a minute and then invite them
 ^F4::invite_last()		; invite the last person
-;+F4::invite_last()		; same, but with shift modifier -- feel free to adapt
++F4::trade_last()		; trade the last person
 F5::kick(fast:=true, secondary, primary) hideout(fast:=true) invite(primary, secondary)
 	; leave/break-up party, start personal hideout transfer, re-create private party -- this is my typical use-case after trade
 	; "fast:=true" here means to skip the default ChatCmdDelay for the initial/intermediate actions -- last action should still have the delay to prevent accidental spam
@@ -117,6 +117,10 @@ invite(char_names*) {
 
 invite_last() {
 	ChatCmdLast("/invite")
+}
+
+trade_last() {
+	ChatCmdLast("/tradewith")
 }
 
 wait_invite(msg := "Can you give me a minute?") {
