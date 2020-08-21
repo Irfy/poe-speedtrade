@@ -27,6 +27,7 @@ global conditional_hotkeys_enabled := 0
 ;;; HOTKEYS ;;;
 ;;;;;;;;;;;;;;;
 
+^!Enter::ChatCmdLast("/whois")
 ^F1::ChatCmd("test")
 F2::oos() remaining() hideout(primary)
 ^F2::kick(primary)		; used to leave party as this char or kick this char (see also F5 and ^F5)
@@ -334,7 +335,7 @@ ChatCmd(cmd, fast:=false) {
 }
 
 ChatCmdLast(cmd, fast:=false) {
-	ForegroundSend("^{Enter}^a^c{Home}{Del}" . cmd . " {Enter}{Enter}^v{Esc}", fast)
+	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}", fast)
 }
 
 ChatLast(msg, fast:=false) {
