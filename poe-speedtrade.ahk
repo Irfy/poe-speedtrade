@@ -28,18 +28,17 @@ global conditional_hotkeys_enabled := 0
 ;;;;;;;;;;;;;;;
 
 ^!Enter::ChatCmdLast("/whois")
-^F1::ChatCmd("test")
-F2::oos() remaining() hideout(primary)
+^F1::ChatCmd("/destroy")
+F2::ChatCmdMulti("/oos", "/remaining", hideout_cmd(primary))
 ^F2::kick(primary)		; used to leave party as this char or kick this char (see also F5 and ^F5)
 ;F3::hideout(secondary) ; enable if using two accounts
-F3::ChatCmd("/harvest") ; otherwise used for arbitrary things
+;F3::ChatCmd("/destroy") ; otherwise used for arbitrary things
 ^F3::kick(secondary)	; used to leave party as this char or kick this char (see also F5 and ^F5)
 F4::wait_invite()		; inform the last person that you need a minute and then invite them
-^F4::invite_last()		; invite the last person
-+F4::trade_last()		; trade the last person
-F5::kick(fast:=true, secondary, primary) hideout(fast:=true) invite(primary, secondary)
+^F4::ChatCmdLast("/invite")		; invite the last person that whispered us
++F4::ChatCmdLast("/tradewith")	; trade the last person that whispered us
+F5::ChatCmdMulti(kick_cmd(secondary, primary), hideout_cmd(), invite_cmd(primary, secondary))
 	; leave/break-up party, start personal hideout transfer, re-create private party -- this is my typical use-case after trade
-	; "fast:=true" here means to skip the default ChatCmdDelay for the initial/intermediate actions -- last action should still have the delay to prevent accidental spam
 ^F5::kick(secondary, primary)	; leave/break-up party
 +F5::invite(primary, secondary)	; re-create private party
 
@@ -91,37 +90,25 @@ teleport_to_party_member() {
 	MouseMove %oldx%, %oldy%
 }
 
-oos() {
-	ChatCmd("/oos", fast:=true)
+hideout_cmd(char_name:="") {
+	return "/hideout " . char_name ; empty char_name is okay
+}
+hideout(char_name:="") {
+	ChatCmd(hideout_cmd(char_name))
 }
 
-remaining() {
-	ChatCmd("/remaining", fast:=true)
+kick_cmd(char_names*) {
+	return ChatCmdEach_cmd("/kick", char_names*)
 }
-
-hideout(fast:=false, char_name:="") {	; allow both parms to be optional, and figure out if char_name was passed as first arg manually
-	if fast is not digit				; This is AHK. If you put the opening brace here, it won't compile. If you put the expression in parentheses, it compiles, but doesn't work.
-	{									; anyway, this is the most reasonable check to see if fast is actually a boolean...
-		char_name := fast
-		fast := false
-	}
-	ChatCmdEach("/hideout", fast, char_name)
-}
-
 kick(char_names*) {
-	ChatCmdEach("/kick", char_names*)
+	ChatCmd(kick_cmd(char_names*))
 }
 
+invite_cmd(char_names*) {
+	return ChatCmdEach_cmd("/invite", char_names*)
+}
 invite(char_names*) {
-	ChatCmdEach("/invite", char_names*)
-}
-
-invite_last() {
-	ChatCmdLast("/invite")
-}
-
-trade_last() {
-	ChatCmdLast("/tradewith")
+	ChatCmd(invite_cmd(char_names*))
 }
 
 wait_invite(msg := "Can you give me a minute?") {
@@ -169,6 +156,157 @@ trade_inventory(fkey) {
 confirm_inventory(fkey) {
 	complex_mouse_op(fkey, 335, 231, 53, 5, 12)
 	goto_accept()
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; CHAT & COMMAND HELPERS ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+debug(string:="", eol:="`n") {
+	FileAppend % string eol, *
+}
+
+ChatCmdEach_cmd(cmd, args*) {	; expects no "fast"
+	local string = ""
+	local prev_arg = ""
+	for i, arg in args {
+		if (arg != "") {
+			if (prev_arg != "") {
+				string .= "{Enter}{Enter}"
+			}
+			debug("ChatCmdEach[" . cmd . "][" . i . "]: " . arg)
+			string .= cmd
+			string .= " "
+			string .= arg
+		}
+		prev_arg := arg
+	}
+	return string
+}
+
+extract_fast(ByRef args*) {
+	local fast := false
+	if (args[1] = true) {			; emulate optional "fast true/false" argument in face of variadic args* -- can't be done otherwise
+		fast := args.RemoveAt(1)	; remember the "fast:=true" case
+;		debug("ChatCmdEach: fast = true")
+	} else if (args[1] = false) {
+		args.RemoveAt(1)            ; just discard if "fast:=false" was explicitly passed
+;		debug("ChatCmdEach: fast = false")
+;	} else {
+;		debug("ChatCmdEach: fast unset")
+	}
+}
+
+ChatCmdEach(cmd, args*) {
+	local fast = extract_fast(args*)
+	ChatCmd(ChatCmdEach_cmd(args), fast)
+}
+
+ChatCmdMulti(cmds*) {
+	local fast = extract_fast(cmds*)
+	local multi_cmd = ""
+	for i, cmd in cmds {
+		if (cmd == "") {
+			debug("ChatCmdMulti got empty cmd at index " . i)
+			MsgBox, , ChatCmdMulti error, ChatCmdMulti got empty cmd at index %i%
+			return
+		}
+		multi_cmd .= cmd
+		if (i < cmds.MaxIndex()) {
+			multi_cmd .= "{Enter}{Enter}"
+		}
+;		debug("ChatCmdMulti[" . i . "]: " . multi_cmd)
+	}
+	ChatCmd(multi_cmd, fast)
+}
+
+ChatCmd(cmd, fast:=false) {
+	ForegroundSend("{Enter}^a^x" . cmd . "{Enter}{Enter}^v{Esc}", fast)
+}
+
+ChatCmdLast(cmd, fast:=false) {
+	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}", fast)
+}
+
+ChatLast(msg, fast:=false) {
+	ForegroundSend("^{Enter}" . msg . "{Enter}", fast)
+}
+
+; all commands by default sleep for this many milliseconds after sending the
+; chat command in order to prevent accidental spam when holding the key.
+global ChatCmdDelay := 1000
+
+ForegroundSend(string, fast:=false) {
+	debug("SendInput[" . (fast ? "fast" : "slow") . "]: " . string)
+	SendInput %string%
+	if (!fast) {
+		Sleep %ChatCmdDelay% ; prevent accidental spam
+	}
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; TRADE & MOUSE HELPERS ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+goto_trade() {
+	MouseMove, 337, 240
+}
+
+goto_accept() {
+	MouseMove, 380, 835
+}
+
+repeater(fkey, keys_down, cmd, keys_up, delay:=30) {
+	SendInput %keys_down%
+	Sleep 100 ; key down takes some time
+	debug("While " . fkey . " pressed:")
+    While GetKeyState(fkey, "P") {
+        SendInput %cmd%
+        Sleep %delay% ;  milliseconds
+    }
+	SendInput %keys_up%
+}
+
+complex_mouse_op(fkey, x_base, y_base, slot_dim, rows, cols, click := false, mouse_modifier := "") {
+	local x := x_base
+	local y := y_base
+	local did_anything := false
+	;SendInput, {Ctrl down}
+	if (mouse_modifier != "") {
+		SendInput, {%mouse_modifier% down}
+	}
+	MouseGetPos, x_old, y_old
+	Sleep, 10
+	while (GetKeyState(fkey, "P")) {
+		did_anything := true
+		if (y >= y_base + rows * slot_dim) { ;have we been over all `rows` rows?
+			x += slot_dim  ;next column
+			if (x >= x_base + cols * slot_dim)
+				break
+			y := y_base    ;reset to top row
+			MouseMove, %x%, %y%
+			Sleep, 50
+		}
+		MouseMove, %x%, %y%
+		Sleep, 30
+		if (click) {
+			Click, %x%, %y%
+		}
+		Sleep, 10
+		if (click) {
+			Click, %x%, %y%
+		}
+		Sleep, 10
+		;Click, %x%, %y%
+		;Sleep, 10
+		y += slot_dim
+	}
+	Sleep, 100
+	if (mouse_modifier != "") {
+		SendInput, {%mouse_modifier% up}
+	}
+	Sleep, 10
+	Return did_anything
 }
 
 trade_inventory_funny(fkey) {
@@ -227,133 +365,6 @@ trade_inventory_funny(fkey) {
 	Return
 }
 
-;;;;;;;;;;;;;;;
-;;; HELPERS ;;;
-;;;;;;;;;;;;;;;
-
-goto_trade() {
-	MouseMove, 337, 240
-}
-
-goto_accept() {
-	MouseMove, 380, 835
-}
-
-debug(string:="", eol:="`n") {
-	FileAppend % string eol, *
-}
-
-repeater(fkey, keys_down, cmd, keys_up, delay:=30) {
-	SendInput %keys_down%
-	Sleep 100 ; key down takes some time
-	debug("While " . fkey . " pressed:")
-    While GetKeyState(fkey, "P") {
-        SendInput %cmd%
-        Sleep %delay% ;  milliseconds
-    }
-	SendInput %keys_up%
-}
-
-complex_mouse_op(fkey, x_base, y_base, slot_dim, rows, cols, click := false, mouse_modifier := "") {
-	local x := x_base
-	local y := y_base
-	local did_anything := false
-	;SendInput, {Ctrl down}
-	if (mouse_modifier != "") {
-		SendInput, {%mouse_modifier% down}
-	}
-	MouseGetPos, x_old, y_old
-	Sleep, 10
-	while (GetKeyState(fkey, "P")) {
-		did_anything := true
-		if (y >= y_base + rows * slot_dim) { ;have we been over all `rows` rows?
-			x += slot_dim  ;next column
-			if (x >= x_base + cols * slot_dim)
-				break
-			y := y_base    ;reset to top row
-			MouseMove, %x%, %y%
-			Sleep, 50
-		}
-		MouseMove, %x%, %y%
-		Sleep, 30
-		if (click) {
-			Click, %x%, %y%
-		}
-		Sleep, 10
-		if (click) {
-			Click, %x%, %y%
-		}
-		Sleep, 10
-		;Click, %x%, %y%
-		;Sleep, 10
-		y += slot_dim
-	}
-	Sleep, 100
-	if (mouse_modifier != "") {
-		SendInput, {%mouse_modifier% up}
-	}
-	Sleep, 10
-	Return did_anything
-}
-
-ChatCmdEach(cmd, args*) {
-	local fast := false
-	if (args[1] = true) {			; emulate optional "fast true/false" argument in face of variadic args* -- can't be done otherwise
-		fast := args.RemoveAt(1)	; remember the "fast:=true" case
-;		debug("ChatCmdEach: fast = true")
-	} else if (args[1] = false) {
-		args.RemoveAt(1)            ; just discard if "fast:=false" was explicitly passed
-;		debug("ChatCmdEach: fast = false")
-;	} else {
-;		debug("ChatCmdEach: fast unset")
-	}
-	local string = ""
-	for i, arg in args {
-		debug("ChatCmdEach[" . (fast ? "fast" : "slow") . "][" . cmd . "][" . i . "]: " . arg)
-		string .= cmd
-		string .= " "
-		string .= arg
-		if (i < args.MaxIndex()) {
-			string .= "{Enter}{Enter}"
-		}
-	}
-	ChatCmd(string, fast)
-}
-
-ExploreObj(Obj, NewRow="`n", Equal="  =  ", Indent="`t", Depth=12, CurIndent="") { 
-
-    for k,v in Obj 
-
-        ToReturn .= CurIndent . k . (IsObject(v) && depth>1 ? NewRow . ExploreObj(v, NewRow, Equal, Indent, Depth-1, CurIndent . Indent) : Equal . v) . NewRow 
-
-    return RTrim(ToReturn, NewRow) 
-
-}
-
-ChatCmd(cmd, fast:=false) {
-	ForegroundSend("{Enter}^a^x" . cmd . "{Enter}{Enter}^v{Esc}", fast)
-}
-
-ChatCmdLast(cmd, fast:=false) {
-	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}", fast)
-}
-
-ChatLast(msg, fast:=false) {
-	ForegroundSend("^{Enter}" . msg . "{Enter}", fast)
-}
-
-; Except the "trivial" commands `oos` and `remaining`, all commands by default sleep for this many
-; milliseconds after sending the chat command in order to prevent accidental spam when holding the key.
-global ChatCmdDelay := 1000
-
-ForegroundSend(string, fast:=false) {
-	debug("SendInput[" . (fast ? "fast" : "slow") . "]: " . string)
-	SendInput %string%
-	if (!fast) {
-		Sleep %ChatCmdDelay% ; prevent accidental spam
-	}
-}
-
 ;;;;;;;;;;;;;;
 ;;; UNUSED ;;;
 ;;;;;;;;;;;;;;
@@ -368,6 +379,12 @@ ClearUI() {
 	SendInput "{Esc}"
 	Sleep 10
 	SendInput "{Space}"
+}
+
+ExploreObj(Obj, NewRow="`n", Equal="  =  ", Indent="`t", Depth=12, CurIndent="") {
+    for k,v in Obj
+        ToReturn .= CurIndent . k . (IsObject(v) && depth>1 ? NewRow . ExploreObj(v, NewRow, Equal, Indent, Depth-1, CurIndent . Indent) : Equal . v) . NewRow
+    return RTrim(ToReturn, NewRow)
 }
 
 PixelWaitColor(x, y, exp_color, max_wait) {
