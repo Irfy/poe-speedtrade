@@ -9,8 +9,8 @@ SetDefaultMouseSpeed, 0
 SetMouseDelay, -1
 
 ; These change every league!
-global primary  := "IrfyHA"  ; character name on primary account
-global secondary := "IrfyTwoHA" ; character name on secondary account, if any
+global primary  := "YourIGNHere"  ; character name on primary account
+global secondary := "" ; character name on secondary account, if any
 
 #UseHook On
 
