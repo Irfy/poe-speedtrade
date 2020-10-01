@@ -166,7 +166,7 @@ debug(string:="", eol:="`n") {
 	FileAppend % string eol, *
 }
 
-ChatCmdEach_cmd(cmd, args*) {	; expects no "fast"
+ChatCmdEach_cmd(cmd, args*) {
 	local string = ""
 	local prev_arg = ""
 	for i, arg in args {
@@ -184,26 +184,11 @@ ChatCmdEach_cmd(cmd, args*) {	; expects no "fast"
 	return string
 }
 
-extract_fast(ByRef args*) {
-	local fast := false
-	if (args[1] = true) {			; emulate optional "fast true/false" argument in face of variadic args* -- can't be done otherwise
-		fast := args.RemoveAt(1)	; remember the "fast:=true" case
-;		debug("ChatCmdEach: fast = true")
-	} else if (args[1] = false) {
-		args.RemoveAt(1)            ; just discard if "fast:=false" was explicitly passed
-;		debug("ChatCmdEach: fast = false")
-;	} else {
-;		debug("ChatCmdEach: fast unset")
-	}
-}
-
 ChatCmdEach(cmd, args*) {
-	local fast = extract_fast(args*)
-	ChatCmd(ChatCmdEach_cmd(args), fast)
+	ChatCmd(ChatCmdEach_cmd(args))
 }
 
 ChatCmdMulti(cmds*) {
-	local fast = extract_fast(cmds*)
 	local multi_cmd = ""
 	for i, cmd in cmds {
 		if (cmd == "") {
@@ -217,31 +202,29 @@ ChatCmdMulti(cmds*) {
 		}
 ;		debug("ChatCmdMulti[" . i . "]: " . multi_cmd)
 	}
-	ChatCmd(multi_cmd, fast)
+	ChatCmd(multi_cmd)
 }
 
-ChatCmd(cmd, fast:=false) {
-	ForegroundSend("{Enter}^a^x" . cmd . "{Enter}{Enter}^v{Esc}", fast)
+ChatCmd(cmd) {
+	ForegroundSend("{Enter}^a^x" . cmd . "{Enter}{Enter}^v{Esc}")
 }
 
-ChatCmdLast(cmd, fast:=false) {
-	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}", fast)
+ChatCmdLast(cmd) {
+	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}")
 }
 
-ChatLast(msg, fast:=false) {
-	ForegroundSend("^{Enter}" . msg . "{Enter}", fast)
+ChatLast(msg) {
+	ForegroundSend("^{Enter}" . msg . "{Enter}")
 }
 
 ; all commands by default sleep for this many milliseconds after sending the
 ; chat command in order to prevent accidental spam when holding the key.
 global ChatCmdDelay := 1000
 
-ForegroundSend(string, fast:=false) {
-	debug("SendInput[" . (fast ? "fast" : "slow") . "]: " . string)
+ForegroundSend(string) {
+	debug("SendInput: " . string)
 	SendInput %string%
-	if (!fast) {
-		Sleep %ChatCmdDelay% ; prevent accidental spam
-	}
+	Sleep %ChatCmdDelay% ; prevent accidental spam
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
