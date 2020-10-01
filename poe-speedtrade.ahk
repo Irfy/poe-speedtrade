@@ -29,15 +29,15 @@ global conditional_hotkeys_enabled := 0
 
 ^!Enter::ChatCmdLast("/whois")
 ^F1::ChatCmd("/destroy")
-F2::ChatCmdMulti("/oos", "/remaining", hideout_cmd(primary))
+F2::ChatCmd("/oos", "/remaining", hideout_cmd(primary))
 ^F2::kick(primary)		; used to leave party as this char or kick this char (see also F5 and ^F5)
 ;F3::hideout(secondary) ; enable if using two accounts
 ;F3::ChatCmd("/destroy") ; otherwise used for arbitrary things
 ^F3::kick(secondary)	; used to leave party as this char or kick this char (see also F5 and ^F5)
 F4::wait_invite()		; inform the last person that you need a minute and then invite them
-^F4::ChatCmdLast("/invite")		; invite the last person that whispered us
+^F4::ChatCmdLast("/kick", "/invite")		; invite the last person that whispered us
 +F4::ChatCmdLast("/tradewith")	; trade the last person that whispered us
-F5::ChatCmdMulti(kick_cmd(secondary, primary), hideout_cmd(), invite_cmd(primary, secondary))
+F5::ChatCmd(kick_cmd(secondary, primary), hideout_cmd(), invite_cmd(primary, secondary))
 	; leave/break-up party, start personal hideout transfer, re-create private party -- this is my typical use-case after trade
 ^F5::kick(secondary, primary)	; leave/break-up party
 +F5::invite(primary, secondary)	; re-create private party
@@ -98,14 +98,14 @@ hideout(char_name:="") {
 }
 
 kick_cmd(char_names*) {
-	return ChatCmdEach_cmd("/kick", char_names*)
+	return ChatCmdEach_str("/kick", char_names*)
 }
 kick(char_names*) {
 	ChatCmd(kick_cmd(char_names*))
 }
 
 invite_cmd(char_names*) {
-	return ChatCmdEach_cmd("/invite", char_names*)
+	return ChatCmdEach_str("/invite", char_names*)
 }
 invite(char_names*) {
 	ChatCmd(invite_cmd(char_names*))
@@ -166,7 +166,7 @@ debug(string:="", eol:="`n") {
 	FileAppend % string eol, *
 }
 
-ChatCmdEach_cmd(cmd, args*) {
+ChatCmdEach_str(cmd, args*) {
 	local string = ""
 	local prev_arg = ""
 	for i, arg in args {
@@ -185,36 +185,36 @@ ChatCmdEach_cmd(cmd, args*) {
 }
 
 ChatCmdEach(cmd, args*) {
-	ChatCmd(ChatCmdEach_cmd(args))
+	ChatCmd(ChatCmdEach_str(cmd, args*))
 }
 
-ChatCmdMulti(cmds*) {
+ChatCmd_str(separator, cmds*) {
 	local multi_cmd = ""
 	for i, cmd in cmds {
 		if (cmd == "") {
-			debug("ChatCmdMulti got empty cmd at index " . i)
-			MsgBox, , ChatCmdMulti error, ChatCmdMulti got empty cmd at index %i%
+			debug("ChatCmd got empty cmd at index " . i)
+			MsgBox, , ChatCmd error, ChatCmd got empty cmd at index %i%
 			return
 		}
 		multi_cmd .= cmd
 		if (i < cmds.MaxIndex()) {
-			multi_cmd .= "{Enter}{Enter}"
+			multi_cmd .= separator
 		}
-;		debug("ChatCmdMulti[" . i . "]: " . multi_cmd)
+;		debug("ChatCmd[" . i . "]: " . multi_cmd)
 	}
-	ChatCmd(multi_cmd)
+	return multi_cmd
 }
 
-ChatCmd(cmd) {
-	ForegroundSend("{Enter}^a^x" . cmd . "{Enter}{Enter}^v{Esc}")
+ChatCmd(cmds*) {
+	ForegroundSend("{Enter}^a^x" . ChatCmd_str("{Enter}{Enter}", cmds*) . "{Enter}{Enter}^v{Esc}")
 }
 
-ChatCmdLast(cmd) {
-	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . cmd . " {Enter}{Enter}^v{Esc}")
+ChatCmdLast(cmds*) {
+	ForegroundSend("^{Enter}^a^c{Home}{Right}{Backspace}" . ChatCmd_str(" {Enter}^{Enter}{Home}{Right}{Backspace}", cmds*) . " {Enter}{Enter}^v{Esc}")
 }
 
-ChatLast(msg) {
-	ForegroundSend("^{Enter}" . msg . "{Enter}")
+ChatLast(msgs*) {
+	ForegroundSend("^{Enter}" . ChatCmd_str("{Enter}{Enter}", msgs*) . "{Enter}")
 }
 
 ; all commands by default sleep for this many milliseconds after sending the
